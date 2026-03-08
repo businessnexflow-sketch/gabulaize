@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Receipt, Percent, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Props {
   data: Partial<SubmissionInput>;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function Step3Product({ data, updateData, onNext, onBack }: Props) {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
@@ -28,7 +30,8 @@ export function Step3Product({ data, updateData, onNext, onBack }: Props) {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch("/api/products");
+        const dealer = user?.username === "info@gorgia.ge" ? "gorgia" : "iron";
+        const res = await fetch(`/api/products?dealer=${dealer}`);
         if (!res.ok) throw new Error("Failed to fetch products");
         const data = await res.json();
         setProducts(data);
@@ -39,7 +42,7 @@ export function Step3Product({ data, updateData, onNext, onBack }: Props) {
       }
     };
     fetchProducts();
-  }, []);
+  }, [user?.username]);
 
   const handleNext = () => {
     const newErrors: Record<string, boolean> = {};

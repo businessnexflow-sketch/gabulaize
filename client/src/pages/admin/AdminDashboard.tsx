@@ -11,14 +11,20 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Edit, Tag, Trash2, Search, LogOut, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Product } from "@shared/schema";
+import { useLocation } from "wouter";
 
 export default function AdminDashboard() {
   const { logout } = useAdminAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+
+  const [dealer, setDealer] = useState<"iron" | "gorgia">(
+    (localStorage.getItem("admin_dealer") as any) || "iron",
+  );
 
   // New Product Form State
   const [newProduct, setNewProduct] = useState({
@@ -42,7 +48,7 @@ export default function AdminDashboard() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch("/api/admin/products", {
+      const res = await fetch(`/api/admin/products?dealer=${dealer}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
       });
       if (!res.ok) throw new Error("Failed to fetch");
@@ -57,13 +63,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [dealer]);
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAddingProduct(true);
     try {
-      const res = await fetch("/api/admin/products", {
+      const res = await fetch(`/api/admin/products?dealer=${dealer}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +95,7 @@ export default function AdminDashboard() {
   const handleUpdatePrice = async () => {
     if (!editingProduct) return;
     try {
-      const res = await fetch(`/api/admin/products/${editingProduct.id}/price`, {
+      const res = await fetch(`/api/admin/products/${editingProduct.id}/price?dealer=${dealer}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -121,7 +127,7 @@ export default function AdminDashboard() {
         percentage = Math.round(((discountingProduct.price - discountPrice) / discountingProduct.price) * 100);
       }
 
-      const res = await fetch(`/api/admin/products/${discountingProduct.id}/discount`, {
+      const res = await fetch(`/api/admin/products/${discountingProduct.id}/discount?dealer=${dealer}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -145,7 +151,7 @@ export default function AdminDashboard() {
   const handleDeleteProduct = async (id: number) => {
     if (!confirm("დარწმუნებული ხართ?")) return;
     try {
-      const res = await fetch(`/api/admin/products/${id}`, {
+      const res = await fetch(`/api/admin/products/${id}?dealer=${dealer}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${localStorage.getItem("admin_token")}` },
       });
@@ -174,9 +180,34 @@ export default function AdminDashboard() {
               <p className="text-muted-foreground">პროდუქტების და ფასების მართვა</p>
             </div>
           </div>
-          <Button variant="outline" onClick={logout} className="h-11 rounded-xl border-2">
-            <LogOut className="w-4 h-4 mr-2" /> გასვლა
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Dealer</Label>
+              <select
+                value={dealer}
+                onChange={(e) => {
+                  const next = e.target.value as any;
+                  setDealer(next);
+                  localStorage.setItem("admin_dealer", next);
+                  setIsLoading(true);
+                }}
+                className="h-11 rounded-xl border-2 bg-background px-3 text-sm"
+              >
+                <option value="iron">Iron+</option>
+                <option value="gorgia">Gorgia</option>
+              </select>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/login")}
+              className="h-11 rounded-xl border-2"
+            >
+              დილერის ლოგინი
+            </Button>
+            <Button variant="outline" onClick={logout} className="h-11 rounded-xl border-2">
+              <LogOut className="w-4 h-4 mr-2" /> გასვლა
+            </Button>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -8,6 +8,17 @@ import { Blob } from "node:buffer";  // added to construct real Blob objects
 
 dotenv.config({ path: resolve(process.cwd(), ".env") });
 
+// Ensure env vars from .env are also set on process.env for downstream consumers.
+// (dotenv already returns parsed values, but other tools/scripts may rely on process.env)
+if (!process.env.DATABASE_URL) {
+  const parsed = dotenv.config({ path: resolve(process.cwd(), ".env") }).parsed;
+  if (parsed) {
+    for (const [k, v] of Object.entries(parsed)) {
+      if (process.env[k] === undefined) process.env[k] = v;
+    }
+  }
+}
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -116,7 +127,7 @@ app.post(
       }
 
       const n8nUrl =
-        "https://blablabla233.app.n8n.cloud/webhook-test/process-document";
+        "https://blablabla233.app.n8n.cloud/webhook-test/socialuri-id-card";
 
       const formData = new FormData();
       // wrap the raw buffer in a real Blob so form-data consumers see a proper Blob object

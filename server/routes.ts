@@ -27,6 +27,21 @@ function authenticateAdmin(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function resolveDealerId(req: Request, res: Response, storage: ReturnType<typeof getStorage>) {
+  const dealerKeyRaw = req.query.dealer;
+  const dealerKey = (Array.isArray(dealerKeyRaw) ? dealerKeyRaw[0] : dealerKeyRaw) as string | undefined;
+  if (!dealerKey) {
+    res.status(400).json({ message: "Missing dealer" });
+    return undefined;
+  }
+  const dealerId = await storage.getDealerIdByKey(dealerKey);
+  if (!dealerId) {
+    res.status(404).json({ message: "Dealer not found" });
+    return undefined;
+  }
+  return dealerId;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -243,9 +258,13 @@ export async function registerRoutes(
   });
 
   // Public Products Route
-  app.get("/api/products", async (_req, res) => {
+  app.get("/api/products", async (req, res) => {
     try {
-      const products = await storage.getProducts();
+      const dealerKeyRaw = req.query.dealer;
+      const dealerKey = (Array.isArray(dealerKeyRaw) ? dealerKeyRaw[0] : dealerKeyRaw) as string | undefined;
+      const dealerId = dealerKey ? await storage.getDealerIdByKey(dealerKey) : await storage.getDealerIdByKey("iron");
+      if (!dealerId) return res.status(404).json({ message: "Dealer not found" });
+      const products = await storage.getProducts(dealerId);
       res.json(products);
     } catch (err) {
       res.status(500).json({ message: (err as Error).message });
@@ -264,15 +283,20 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/products", authenticateAdmin, async (req, res) => {
-    const products = await storage.getProducts();
+    const dealerId = await resolveDealerId(req, res, storage);
+    if (!dealerId) return;
+    const products = await storage.getProducts(dealerId);
     res.json(products);
   });
 
   app.post("/api/admin/products", authenticateAdmin, async (req, res) => {
     try {
       console.log("Admin Add Product Request:", req.body);
+      const dealerId = await resolveDealerId(req, res, storage);
+      if (!dealerId) return;
       const productData = {
         ...req.body,
+        dealerId,
         price: Number(req.body.price),
         stock: Number(req.body.stock),
       };
@@ -286,7 +310,9 @@ export async function registerRoutes(
 
   app.patch("/api/admin/products/:id/price", authenticateAdmin, async (req, res) => {
     try {
-      const product = await storage.updateProduct(Number(req.params.id), { price: req.body.price });
+      const dealerId = await resolveDealerId(req, res, storage);
+      if (!dealerId) return;
+      const product = await storage.updateProduct(dealerId, Number(req.params.id), { price: req.body.price });
       res.json(product);
     } catch (err) {
       res.status(400).json({ message: (err as Error).message });
@@ -295,7 +321,9 @@ export async function registerRoutes(
 
   app.patch("/api/admin/products/:id/discount", authenticateAdmin, async (req, res) => {
     try {
-      const product = await storage.updateProduct(Number(req.params.id), {
+      const dealerId = await resolveDealerId(req, res, storage);
+      if (!dealerId) return;
+      const product = await storage.updateProduct(dealerId, Number(req.params.id), {
         discountPrice: req.body.discountPrice,
         discountPercentage: req.body.discountPercentage,
         discountExpiry: req.body.discountExpiry ? new Date(req.body.discountExpiry) : null,
@@ -307,8 +335,64 @@ export async function registerRoutes(
   });
 
   app.delete("/api/admin/products/:id", authenticateAdmin, async (req, res) => {
-    await storage.deleteProduct(Number(req.params.id));
+    const dealerId = await resolveDealerId(req, res, storage);
+    if (!dealerId) return;
+    await storage.deleteProduct(dealerId, Number(req.params.id));
     res.sendStatus(200);
+  });
+
+  app.post("/api/admin/products/copy", authenticateAdmin, async (req, res) => {
+    try {
+      const input = z
+        .object({ from: z.string().min(1), to: z.string().min(1) })
+        .parse(req.body);
+
+      const fromId = await storage.getDealerIdByKey(input.from);
+      const toId = await storage.getDealerIdByKey(input.to);
+      if (!fromId) return res.status(404).json({ message: "Source dealer not found" });
+      if (!toId) return res.status(404).json({ message: "Target dealer not found" });
+
+      const products = await storage.getProducts(fromId);
+      let copied = 0;
+      let updated = 0;
+      for (const p of products) {
+        const existing = (await storage.getProducts(toId)).find((x) => x.name === p.name);
+        if (!existing) {
+          await storage.createProduct({
+            dealerId: toId,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            category: p.category,
+            imageUrl: p.imageUrl,
+            stock: p.stock,
+            discountPrice: p.discountPrice,
+            discountPercentage: p.discountPercentage,
+            discountExpiry: p.discountExpiry as any,
+          } as any);
+          copied++;
+        } else {
+          await storage.updateProduct(toId, existing.id, {
+            description: p.description,
+            price: p.price,
+            category: p.category,
+            imageUrl: p.imageUrl,
+            stock: p.stock,
+            discountPrice: p.discountPrice,
+            discountPercentage: p.discountPercentage,
+            discountExpiry: p.discountExpiry as any,
+          } as any);
+          updated++;
+        }
+      }
+
+      return res.json({ success: true, copied, updated });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      return res.status(500).json({ message: (err as Error).message });
+    }
   });
   void (async () => {
     try {
