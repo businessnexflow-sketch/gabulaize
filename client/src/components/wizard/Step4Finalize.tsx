@@ -139,7 +139,7 @@ export function Step4Finalize({ data, updateData, onSubmit, onBack, isSubmitting
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">მდებარეობა:</span>
-                <span className="font-medium text-foreground">{data.city}, {data.region}</span>
+                <span className="font-medium text-foreground">{data.city}</span>
               </div>
               
               <div className="h-px bg-primary/10 w-full my-2"></div>

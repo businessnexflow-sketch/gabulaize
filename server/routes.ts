@@ -200,6 +200,32 @@ export async function registerRoutes(
 
       const extracted = mapN8nResultToIdData(firstItem ?? {});
 
+      const allowedKeys = new Set([
+        "firstName",
+        "lastName",
+        "personalId",
+        "gender",
+        "expiryDate",
+      ]);
+
+      const extraKeys =
+        firstItem && typeof firstItem === "object" && !Array.isArray(firstItem)
+          ? Object.keys(firstItem as any).filter((k) => !allowedKeys.has(k))
+          : [];
+
+      // If n8n returned an error/info payload instead of expected identity data, surface it as an error.
+      if (!extracted.firstName || !extracted.lastName || !extracted.idNumber || extraKeys.length > 0) {
+        const rawText =
+          typeof firstItem === "string"
+            ? firstItem
+            : firstItem && typeof firstItem === "object"
+              ? JSON.stringify(firstItem)
+              : String(firstItem);
+        return res.status(400).json({
+          message: rawText,
+        });
+      }
+
       // Attempt to persist the extracted data, but never block the UI on failure.
       try {
         const storageAny = storage as any;
@@ -308,11 +334,51 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/products/:id", authenticateAdmin, async (req, res) => {
+    try {
+      const dealerId = await resolveDealerId(req, res, storage);
+      if (!dealerId) return;
+      const id = Number(req.params.id);
+      const existing = await storage.getProduct(dealerId, id);
+      if (!existing) return res.status(404).json({ message: "Product not found" });
+
+      const input = z
+        .object({
+          name: z.string().min(1).optional(),
+          description: z.string().min(1).optional(),
+          category: z.string().min(1).optional(),
+          imageUrl: z.string().optional().nullable(),
+          stock: z.coerce.number().int().optional(),
+          price: z.coerce.number().int().optional(),
+          discountPrice: z.coerce.number().int().optional().nullable(),
+          discountPercentage: z.coerce.number().int().optional().nullable(),
+          discountExpiry: z.coerce.string().optional().nullable(),
+        })
+        .parse(req.body);
+
+      const update: any = { ...input };
+      if (update.discountExpiry !== undefined) {
+        update.discountExpiry = update.discountExpiry ? new Date(update.discountExpiry) : null;
+      }
+
+      const product = await storage.updateProduct(dealerId, id, update);
+      return res.json(product);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      return res.status(400).json({ message: (err as Error).message });
+    }
+  });
+
   app.patch("/api/admin/products/:id/price", authenticateAdmin, async (req, res) => {
     try {
       const dealerId = await resolveDealerId(req, res, storage);
       if (!dealerId) return;
-      const product = await storage.updateProduct(dealerId, Number(req.params.id), { price: req.body.price });
+      const id = Number(req.params.id);
+      const existing = await storage.getProduct(dealerId, id);
+      if (!existing) return res.status(404).json({ message: "Product not found" });
+      const product = await storage.updateProduct(dealerId, id, { price: req.body.price });
       res.json(product);
     } catch (err) {
       res.status(400).json({ message: (err as Error).message });
@@ -323,7 +389,10 @@ export async function registerRoutes(
     try {
       const dealerId = await resolveDealerId(req, res, storage);
       if (!dealerId) return;
-      const product = await storage.updateProduct(dealerId, Number(req.params.id), {
+      const id = Number(req.params.id);
+      const existing = await storage.getProduct(dealerId, id);
+      if (!existing) return res.status(404).json({ message: "Product not found" });
+      const product = await storage.updateProduct(dealerId, id, {
         discountPrice: req.body.discountPrice,
         discountPercentage: req.body.discountPercentage,
         discountExpiry: req.body.discountExpiry ? new Date(req.body.discountExpiry) : null,
@@ -337,7 +406,10 @@ export async function registerRoutes(
   app.delete("/api/admin/products/:id", authenticateAdmin, async (req, res) => {
     const dealerId = await resolveDealerId(req, res, storage);
     if (!dealerId) return;
-    await storage.deleteProduct(dealerId, Number(req.params.id));
+    const id = Number(req.params.id);
+    const existing = await storage.getProduct(dealerId, id);
+    if (!existing) return res.status(404).json({ message: "Product not found" });
+    await storage.deleteProduct(dealerId, id);
     res.sendStatus(200);
   });
 

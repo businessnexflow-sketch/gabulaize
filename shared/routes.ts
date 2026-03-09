@@ -24,8 +24,8 @@ export const submissionSchema = z.object({
   gender: z.string(),
   expiryDate: z.string(),
   phone: z.string(),
-  region: z.string(),
-  municipality: z.string(),
+  region: z.string().optional(),
+  municipality: z.string().optional(),
   city: z.string().optional(),
   sociallyVulnerable: z.boolean(),
   socialExtract: z.string().optional(), // base64

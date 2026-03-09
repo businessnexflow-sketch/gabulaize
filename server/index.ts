@@ -93,15 +93,28 @@ app.post(
       const data = n8nRes.data;
       const obj = Array.isArray(data) ? data[0] : data;
 
+      const allowedKeys = new Set(["firstName", "lastName", "personalId"]);
+      const extraKeys =
+        obj && typeof obj === "object" && !Array.isArray(obj)
+          ? Object.keys(obj).filter((k) => !allowedKeys.has(k))
+          : [];
+
       if (
         !obj ||
         typeof obj.firstName !== "string" ||
         typeof obj.lastName !== "string" ||
         typeof obj.personalId !== "string"
+        || extraKeys.length > 0
       ) {
+        const rawText =
+          typeof obj === "string"
+            ? obj
+            : obj && typeof obj === "object"
+              ? JSON.stringify(obj)
+              : String(obj);
         return res
           .status(400)
-          .json({ message: "პენსიონერის მოწმობის წაკითხვა ვერ მოხერხდა" });
+          .json({ message: rawText });
       }
 
       return res.status(200).json(obj);
@@ -175,6 +188,17 @@ app.post(
       };
 
       flattenAnything(n8nRes.data);
+
+      // If n8n returned something else (e.g., text/error object), surface it.
+      if (!allObjects.length) {
+        const rawText =
+          typeof n8nRes.data === "string"
+            ? n8nRes.data
+            : n8nRes.data && typeof n8nRes.data === "object"
+              ? JSON.stringify(n8nRes.data)
+              : String(n8nRes.data);
+        return res.status(400).json({ success: false, message: rawText });
+      }
 
       console.log('--- STEP B: TOTAL OBJECTS FOUND ---', allObjects.length);
 

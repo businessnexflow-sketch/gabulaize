@@ -74,7 +74,11 @@ export function Step1Identity({ data, updateData, onNext }: Props) {
       });
 
       if (!res.ok) {
-        throw new Error(await res.text());
+        const msg = await res
+          .json()
+          .then((d) => d?.message)
+          .catch(async () => await res.text());
+        throw new Error(typeof msg === "string" ? msg : "მონაცემების ამოკითხვა ვერ მოხერხდა");
       }
 
       const dataRes = (await res.json()) as any;
@@ -104,14 +108,24 @@ export function Step1Identity({ data, updateData, onNext }: Props) {
 
       setScanComplete(true);
       onNext(); // Only after successful response + mapping
-    } catch (_e) {
-      setError("მონაცემების ამოკითხვა ვერ მოხერხდა. გთხოვთ, ატვირთოთ უფრო მკაფიო ფოტოები");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "მონაცემების ამოკითხვა ვერ მოხერხდა";
+      setError(msg);
     } finally {
       setIsScanning(false);
     }
   };
 
   const canProceed = !!data.idFront && !!data.idBack && !isScanning;
+
+  const getPreviewSrc = (v: unknown) => {
+    if (typeof v !== "string") return undefined;
+    const s = v.trim();
+    if (!s) return undefined;
+    // If fileToBase64 returned a data URL, keep it; otherwise assume it's base64 and add a jpeg header.
+    if (s.startsWith("data:")) return s;
+    return `data:image/jpeg;base64,${s}`;
+  };
 
   return (
     <motion.div
@@ -134,16 +148,26 @@ export function Step1Identity({ data, updateData, onNext }: Props) {
             data.idFront ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50",
             errors.idFront && "border-destructive bg-destructive/5"
           )}>
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              {data.idFront ? (
-                <CheckCircle2 className="w-10 h-10 text-primary mb-3" />
-              ) : (
+            {data.idFront ? (
+              <div className="w-full h-full relative overflow-hidden rounded-2xl">
+                <img
+                  src={getPreviewSrc(data.idFront)}
+                  alt="ID Front"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                    <p className="text-sm font-medium text-white">წინა მხარე აიტვირთა (შეცვლა)</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <UploadCloud className="w-10 h-10 text-muted-foreground mb-3 group-hover:text-primary transition-colors" />
-              )}
-              <p className="text-sm font-medium text-foreground">
-                {data.idFront ? "წინა მხარე წარმატებით აიტვირთა" : "დააჭირეთ წინა მხარის ასატვირთად"}
-              </p>
-            </div>
+                <p className="text-sm font-medium text-foreground">დააჭირეთ წინა მხარის ასატვირთად</p>
+              </div>
+            )}
             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload("idFront", e)} />
           </label>
         </div>
@@ -156,16 +180,26 @@ export function Step1Identity({ data, updateData, onNext }: Props) {
             data.idBack ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50",
             errors.idBack && "border-destructive bg-destructive/5"
           )}>
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              {data.idBack ? (
-                <CheckCircle2 className="w-10 h-10 text-primary mb-3" />
-              ) : (
+            {data.idBack ? (
+              <div className="w-full h-full relative overflow-hidden rounded-2xl">
+                <img
+                  src={getPreviewSrc(data.idBack)}
+                  alt="ID Back"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                    <p className="text-sm font-medium text-white">უკანა მხარე აიტვირთა (შეცვლა)</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <UploadCloud className="w-10 h-10 text-muted-foreground mb-3 group-hover:text-primary transition-colors" />
-              )}
-              <p className="text-sm font-medium text-foreground">
-                {data.idBack ? "უკანა მხარე წარმატებით აიტვირთა" : "დააჭირეთ უკანა მხარის ასატვირთად"}
-              </p>
-            </div>
+                <p className="text-sm font-medium text-foreground">დააჭირეთ უკანა მხარის ასატვირთად</p>
+              </div>
+            )}
             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload("idBack", e)} />
           </label>
         </div>

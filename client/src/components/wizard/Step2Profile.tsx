@@ -33,8 +33,6 @@ export function Step2Profile({ data, updateData, onNext, onBack }: Props) {
     lastName: useRef<HTMLDivElement>(null),
     idNumber: useRef<HTMLDivElement>(null),
     phone: useRef<HTMLDivElement>(null),
-    region: useRef<HTMLDivElement>(null),
-    municipality: useRef<HTMLDivElement>(null),
     socialExtract: useRef<HTMLDivElement>(null),
     pensionerCertificate: useRef<HTMLDivElement>(null),
   };
@@ -175,8 +173,6 @@ export function Step2Profile({ data, updateData, onNext, onBack }: Props) {
     if (!data.lastName) newErrors.lastName = true;
     if (!data.idNumber) newErrors.idNumber = true;
     if (!data.phone) newErrors.phone = true;
-    if (!data.region) newErrors.region = true;
-    if (!data.municipality) newErrors.municipality = true;
     if (data.sociallyVulnerable && (!data.socialExtract || !isSocialVerified)) newErrors.socialExtract = true;
     if (data.pensioner && (!data.pensionerCertificate || !isPensionerVerified)) newErrors.pensionerCertificate = true;
 
@@ -290,32 +286,6 @@ export function Step2Profile({ data, updateData, onNext, onBack }: Props) {
               setErrors((prev) => ({ ...prev, phone: false }));
             }}
             className={cn("h-12 rounded-xl", errors.phone && "border-destructive bg-destructive/5")}
-          />
-        </div>
-        <div className="space-y-2" ref={fieldRefs.region}>
-          <Label htmlFor="region" className={cn(errors.region && "text-destructive")}>რეგიონი *</Label>
-          <Input 
-            id="region" 
-            placeholder="მაგ: კახეთი" 
-            value={data.region || ""} 
-            onChange={(e) => {
-              updateData({ region: e.target.value });
-              setErrors((prev) => ({ ...prev, region: false }));
-            }}
-            className={cn("h-12 rounded-xl", errors.region && "border-destructive bg-destructive/5")}
-          />
-        </div>
-        <div className="space-y-2" ref={fieldRefs.municipality}>
-          <Label htmlFor="municipality" className={cn(errors.municipality && "text-destructive")}>მუნიციპალიტეტი *</Label>
-          <Input 
-            id="municipality" 
-            placeholder="მაგ: თელავი" 
-            value={data.municipality || ""} 
-            onChange={(e) => {
-              updateData({ municipality: e.target.value });
-              setErrors((prev) => ({ ...prev, municipality: false }));
-            }}
-            className={cn("h-12 rounded-xl", errors.municipality && "border-destructive bg-destructive/5")}
           />
         </div>
       </div>
